@@ -12,7 +12,17 @@ LIBRARY_IOC += procServControl
 DBD += procServControl.dbd
 
 # The following are compiled and added to the support library
-procServControl_SRCS += procServControl.st
+
+
+ifeq ($(findstring linux,$(EPICS_HOST_ARCH)),)
+    # Windows
+    procServControl_SRCS += procServControlWindows.st
+else
+    # Linux
+    procServControl_SRCS += procServControl.st
+endif
+
+procServControl_LIBS += asyn seq
 
 # We need to link against the EPICS Base libraries
 procServControl_LIBS += $(EPICS_BASE_IOC_LIBS)
