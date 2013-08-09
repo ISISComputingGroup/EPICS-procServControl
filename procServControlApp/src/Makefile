@@ -13,14 +13,10 @@ DBD += procServControl.dbd
 
 # The following are compiled and added to the support library
 
+# if we need any extra SNC flags add them here
+# USR_SNCFLAGS += 
 
-ifeq ($(findstring linux,$(EPICS_HOST_ARCH)),)
-    # Windows
-    procServControl_SRCS += procServControlWindows.st
-else
-    # Linux
-    procServControl_SRCS += procServControl.st
-endif
+procServControl_SRCS += procServControl.st
 
 procServControl_LIBS += asyn seq
 

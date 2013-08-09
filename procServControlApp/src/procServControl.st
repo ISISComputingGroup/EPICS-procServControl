@@ -4,12 +4,12 @@ program procServControl("P=P")
 %% #include <stdlib.h>
 %% #include <string.h>
 %% #include <asynDriver.h>
-#ifdef WIN32
+#ifdef _WIN32
 %% #include <windows.h>
 %% #include <process.h>
 #else
 %% #include <unistd.h>
-#endif
+#endif /* ifdef _WIN32 */
 option +r;
 
 /* This defines the number of lines and max line length */
@@ -230,11 +230,11 @@ static void getNextLine(struct UserVar *pVar) {
     pasynManager->isConnected(pasynUser, &yesNo);
     if (yesNo == 0) {
         if (pVar->status == PROCSERVSTOPPED) {
-            #ifdef WIN32
+            #ifdef _WIN32
                 Sleep(1000);
             #else
                 sleep(1);
-            #endif
+            #endif /* ifdef _WIN32 */
         } else {
             pVar->status = PROCSERVSTOPPED;
             pVar->lastcommand = STATUS;
