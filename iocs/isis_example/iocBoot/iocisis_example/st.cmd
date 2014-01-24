@@ -11,12 +11,15 @@ cd ${TOP}
 dbLoadDatabase "dbd/isis_example.dbd"
 isis_example_registerRecordDeviceDriver pdbbase
 
-drvAsynIPPortConfigure("port1", "localhost:20000", 100, 0, 0)
-
 ## Load record instances
-dbLoadRecords("db/isis_example.db", "P=TEST, PORT=port1")
+# Set MANUALSTART # if the IOC is manually started. This changes the severity of STATUS
+#drvAsynIPPortConfigure("port1", "localhost:20000", 100, 0, 0)
+#dbLoadRecords("db/isis_example.db", "P=TEST, PORT=port1, SHOWOUT=1, MANUALSTART=#")
+
+< $(IOCSTARTUP)/psc1.cmd
 
 cd ${TOP}/iocBoot/${IOC}
 iocInit
 
-seq(procServControl,"P=TEST, PORT=port1")
+#seq(procServControl,"P=TEST")
+< $(IOCSTARTUP)/psc2.cmd
