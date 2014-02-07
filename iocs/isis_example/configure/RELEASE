@@ -36,4 +36,5 @@ ASYN=$(SUPPORT)/asyn/4-22
 BUSY=$(SUPPORT)/busy/1-4
 STREAM=$(SUPPORT)/StreamDevice
 PROCSERVCONTROL=$(SUPPORT)/procServControl/1-2
+ONCRPC=$(SUPPORT)/oncrpc/2
 include $(TOP)/../../../../../ISIS_CONFIG.$(EPICS_HOST_ARCH)
