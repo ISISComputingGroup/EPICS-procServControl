@@ -272,6 +272,10 @@ static void getNextLine(struct UserVar *pVar) {
             /* Join with a \n */
             sprintf(pVar->iocout + bytes++, "\n");
         }
+		/* zero out rest of array so we do not get any leftovers displayed */ 
+		if ( bytes < sizeof(pVar->iocout) ) {
+		    memset(pVar->iocout + bytes, 0, sizeof(pVar->iocout) - bytes);
+		}
         pVar->lastcommand = IOCOUT;
     }
 
