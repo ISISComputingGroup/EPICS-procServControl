@@ -13,6 +13,10 @@ record(stringin, "$(P):IOCNAME") {
   field(DESC, "IOC Name")
 }
 
+record(stringin, "$(P):IOCDESC") {
+  field(DESC, "IOC Description")
+}
+
 #% archiver 10 Monitor
 record(bi, "$(P):AUTORESTART") {
   field(DESC, "Autorestart readback")
