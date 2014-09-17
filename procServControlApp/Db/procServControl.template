@@ -11,10 +11,12 @@
 # # \image html procServ.png "Gui snapshot"
 record(stringin, "$(P):IOCNAME") {
   field(DESC, "IOC Name")
+  info(autosaveFields, "VAL")
 }
 
 record(stringin, "$(P):IOCDESC") {
   field(DESC, "IOC Description")
+  info(autosaveFields, "VAL")
 }
 
 #% archiver 10 Monitor
