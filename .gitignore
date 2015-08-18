@@ -1,0 +1,17 @@
+O.*/
+/db
+/bin
+/dbd
+/include
+/lib
+/templates
+envPaths
+cdCommands
+dllPath.bat
+runIoc.bat
+/data/
+/iocs/example/bin/
+/iocs/example/data/
+/iocs/example/db/
+/iocs/example/dbd/
+
