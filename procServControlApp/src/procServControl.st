@@ -3,7 +3,6 @@ program procServControl("P=P")
 %% #include <stdio.h>
 %% #include <stdlib.h>
 %% #include <string.h>
-%% #include <asynDriver.h>
 #ifdef _WIN32
 %% #include <windows.h>
 %% #include <process.h>
@@ -31,6 +30,7 @@ int status;                assign status        to "{P}:STATUS";
 #define RUNNING 0
 #define SHUTDOWN 1
 #define PROCSERVSTOPPED 2
+#define INVALIDPORTNAME 3
 char iocout[NELM];        assign iocout        to "{P}:IOCOUT";
 
 /* Commands */
@@ -186,10 +186,18 @@ ss ssProcServInput {
 
 /* C functions */
 %{
+
+static void do_sleep(float secs)
+{
+#ifdef _WIN32
+    Sleep((int)(1000 * secs));
+#else
+    sleep(secs);
+#endif /* ifdef _WIN32 */
+}
 /* Create an asynUser and set it up using the port name */
 static void createAsynUser(struct UserVar *pVar) {
     int i;
-    asynUser *pasynUser;
     /* Increment the global state machine counter */
     pVar->stateIndex = stateIndexGlobal++;
     if (stateIndexGlobal > NSTATEMACHINES) {
@@ -197,16 +205,21 @@ static void createAsynUser(struct UserVar *pVar) {
         return;
     }
     /* Connect the port */
-    pasynUser = NULL;
-    pasynOctetSyncIO->connect(pVar->port, 0, &pasynUser, NULL);
-    pasynOctetSyncIO->setInputEos(pasynUser, "\r\n", 2);
-    pasynOctetSyncIO->setOutputEos(pasynUser, "", 0);
-    pasynUsers[pVar->stateIndex] = pasynUser;
-    /* Clear output lines */
-    for (i = 0; i < NLINES; i++) {
-        strcpy(pVar->iocLine[i], "");
+    asynUser *pasynUser = NULL;
+    if (pasynOctetSyncIO->connect(pVar->port, 0, &pasynUser, NULL)) {
+        /* Invalid port name, can't recover from this */
+        printf("***Error: can't connect to asyn port name %s\n", pVar->port);
+        pasynUser = NULL;
+    } else {
+        pasynOctetSyncIO->setInputEos(pasynUser, "\r\n", 2);
+        pasynOctetSyncIO->setOutputEos(pasynUser, "", 0);
+        pasynUsers[pVar->stateIndex] = pasynUser;
+        /* Clear output lines */
+        for (i = 0; i < NLINES; i++) {
+            strcpy(pVar->iocLine[i], "");
+        }
+        pVar->iocLineI = 0;
     }
-    pVar->iocLineI = 0;
 }
 
 /* Get the next line of IOC output and process it */
@@ -216,25 +229,30 @@ static void getNextLine(struct UserVar *pVar) {
     size_t bytes;
     int eomReason;
     int i, index, yesNo;
-    asynUser *pasynUser;
 
     /* By default there is nothing to do on return */
-       pVar->lastcommand = NONE;
+    pVar->lastcommand = NONE;
 
     /* Check that asynUser exists */
     if (pVar->stateIndex >= NSTATEMACHINES) return;
-    pasynUser = pasynUsers[pVar->stateIndex];
-    if (pasynUser == NULL) return;
-
+    asynUser *pasynUser = pasynUsers[pVar->stateIndex];
+    if (pasynUser == NULL) {
+        if (pVar->status == INVALIDPORTNAME) {
+            /* we can never recover, but at least we won't use all the CPU... */
+            do_sleep(1);
+        } else {
+            pVar->lastcommand = STATUS;
+            pVar->status = INVALIDPORTNAME;
+        }
+        return;
+    }
+    
     /* Check asynUser is connected */
     pasynManager->isConnected(pasynUser, &yesNo);
+    
     if (yesNo == 0) {
         if (pVar->status == PROCSERVSTOPPED) {
-            #ifdef _WIN32
-                Sleep(1000);
-            #else
-                sleep(1);
-            #endif /* ifdef _WIN32 */
+            do_sleep(1);
         } else {
             pVar->status = PROCSERVSTOPPED;
             pVar->lastcommand = STATUS;
@@ -252,7 +270,7 @@ static void getNextLine(struct UserVar *pVar) {
 
     /* read from the asyn port, if we fail (no data) just return */
     if (pasynOctetSyncIO->read(pasynUser, buffer, LINELENGTH, 0.1, &bytes, &eomReason)) {
-        return;
+        do_sleep(0.1);
     }
 
     /* NULL terminate the buffer and put it in the right place */
@@ -272,10 +290,10 @@ static void getNextLine(struct UserVar *pVar) {
             /* Join with a \n */
             sprintf(pVar->iocout + bytes++, "\n");
         }
-		/* zero out rest of array so we do not get any leftovers displayed */ 
-		if ( bytes < sizeof(pVar->iocout) ) {
-		    memset(pVar->iocout + bytes, 0, sizeof(pVar->iocout) - bytes);
-		}
+        /* zero out rest of array so we do not get any leftovers displayed */
+        if ( bytes < sizeof(pVar->iocout) ) {
+              memset(pVar->iocout + bytes, 0, sizeof(pVar->iocout) - bytes);
+        }
         pVar->lastcommand = IOCOUT;
     }
 
@@ -343,11 +361,10 @@ static void getNextLine(struct UserVar *pVar) {
 static void writeControlChar(struct UserVar *pVar, const char *controlChar) {
     size_t bytes;
     int yesNo;
-    asynUser *pasynUser;
 
     /* Check that asynUser exists */
     if (pVar->stateIndex >= NSTATEMACHINES) return;
-    pasynUser = pasynUsers[pVar->stateIndex];
+    asynUser *pasynUser = pasynUsers[pVar->stateIndex];
     if (pasynUser == NULL) return;
 
     /* Check asynUser is connected */

@@ -9,6 +9,12 @@
 # # EPICS. It should be run in a separate IOC, but needs to be running on the
 # # same machine as procServ as procServ only allows localhost access
 # # \image html procServ.png "Gui snapshot"
+
+# This associates BOY screens with the template
+# Note this refers to the OPI for HW status in BLGui which uses
+# PVs from procserv and deviocstats
+# % gui, $(name=), boycomponent, procServControlApp_opi/procServControl.opi, P=$(P), name=$(name=)
+
 record(stringin, "$(P):IOCNAME") {
   field(DESC, "IOC Name")
   info(autosaveFields, "VAL")
@@ -44,59 +50,34 @@ record(mbbi, "$(P):STATUS") {
   field(ZRST, "Running")
   field(ONST, "Shutdown")
   field(TWST, "procServ Stopped")
+  field(THST, "Invalid portname")  
 $(MANUALSTART=)  field(ONSV, "MAJOR")
   field(TWSV, "MAJOR")
+  field(THSV, "MAJOR")  
   field(ZRVL, "0")
   field(ONVL, "1")
   field(TWVL, "2")
+  field(THVL, "3")  
 }
 
 #% archiver 10 Monitor
-record(bo, "$(P):TOGGLE") {
+record(busy, "$(P):TOGGLE") {
   field(DESC, "Autorestart toggle")
-  field(ZNAM, "Done")
-  field(ONAM, "Busy")
-  field(OUT, "$(P):TOGGLE_B PP")
-}
-
-record(busy, "$(P):TOGGLE_B") {
-  field(DESC, "Autorestart toggle busy record")
 }
 
 #% archiver 10 Monitor
-record(bo, "$(P):START") {
+record(busy, "$(P):START") {
   field(DESC, "Start IOC")
-  field(ZNAM, "Done")
-  field(ONAM, "Busy")
-  field(OUT, "$(P):START_B PP")
-}
-
-record(busy, "$(P):START_B") {
-  field(DESC, "Start IOC busy record")
 }
 
 #% archiver 10 Monitor
-record(bo, "$(P):STOP") {
+record(busy, "$(P):STOP") {
   field(DESC, "Stop IOC")
-  field(ZNAM, "Done")
-  field(ONAM, "Busy")
-  field(OUT, "$(P):STOP_B PP")
-}
-
-record(busy, "$(P):STOP_B") {
-  field(DESC, "Stop IOC busy record")
 }
 
 #% archiver 10 Monitor
-record(bo, "$(P):RESTART") {
+record(busy, "$(P):RESTART") {
   field(DESC, "Restart IOC")
-  field(ZNAM, "Done")
-  field(ONAM, "Busy")
-  field(OUT, "$(P):RESTART_B PP")
-}
-
-record(busy, "$(P):RESTART_B") {
-  field(DESC, "Restart IOC busy record")
 }
 
 record(waveform, "$(P):IOCOUT") {
@@ -111,6 +92,7 @@ record(stringin, "$(P):PORT") {
   field(PINI, "YES")
 }
 
+
 record(longin, "$(P):CONPORT") {
   field(DESC, "procServ IOC console port number")
   field(VAL, "$(CONPORT)")
@@ -122,3 +104,4 @@ record(longin, "$(P):LOGPORT") {
   field(VAL, "$(LOGPORT)")
   field(PINI, "YES")
 }
+
