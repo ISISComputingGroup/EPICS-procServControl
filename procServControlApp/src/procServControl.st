@@ -101,6 +101,8 @@ ss ssUserInput {
             if (status == RUNNING) {
                 if (autorestart == 1) {
                     %% writeControlChar(pVar, "\x14");
+                    autorestart = 0;
+                    pvPut(autorestart, SYNC);
                 }
                 %% writeControlChar(pVar, "\x18");
             }
@@ -114,6 +116,8 @@ ss ssUserInput {
             if (status == RUNNING) {
                 if (autorestart == 0) {
                     %% writeControlChar(pVar, "\x14");
+                    autorestart = 1;
+                    pvPut(autorestart, SYNC);
                 }
                 %% writeControlChar(pVar, "\x18");
             }
