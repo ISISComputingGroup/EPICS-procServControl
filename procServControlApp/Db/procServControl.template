@@ -61,23 +61,55 @@ $(MANUALSTART=)  field(ONSV, "MAJOR")
 }
 
 #% archiver 10 Monitor
-record(busy, "$(P):TOGGLE") {
+record(bo, "$(P):TOGGLE") {
   field(DESC, "Autorestart toggle")
+  field(ZNAM, "Done")
+  field(ONAM, "Busy")
+  field(OUT, "$(P):TOGGLE_B PP")
+}
+
+record(busy, "$(P):TOGGLE_B") {
+  field(DESC, "Autorestart toggle busy record")
+  field(OUT, "$(P):TOGGLE NPP")
 }
 
 #% archiver 10 Monitor
-record(busy, "$(P):START") {
+record(bo, "$(P):START") {
   field(DESC, "Start IOC")
+  field(ZNAM, "Done")
+  field(ONAM, "Busy")
+  field(OUT, "$(P):START_B PP")
+}
+
+record(busy, "$(P):START_B") {
+  field(DESC, "Start IOC busy record")
+  field(OUT, "$(P):START NPP")
 }
 
 #% archiver 10 Monitor
-record(busy, "$(P):STOP") {
+record(bo, "$(P):STOP") {
   field(DESC, "Stop IOC")
+  field(ZNAM, "Done")
+  field(ONAM, "Busy")
+  field(OUT, "$(P):STOP_B PP")
+}
+
+record(busy, "$(P):STOP_B") {
+  field(DESC, "Stop IOC busy record")
+  field(OUT, "$(P):STOP NPP")
 }
 
 #% archiver 10 Monitor
-record(busy, "$(P):RESTART") {
+record(bo, "$(P):RESTART") {
   field(DESC, "Restart IOC")
+  field(ZNAM, "Done")
+  field(ONAM, "Busy")
+  field(OUT, "$(P):RESTART_B PP")
+}
+
+record(busy, "$(P):RESTART_B") {
+  field(DESC, "Restart IOC busy record")
+  field(OUT, "$(P):RESTART NPP")
 }
 
 record(waveform, "$(P):IOCOUT") {

@@ -34,10 +34,10 @@ int status;                assign status        to "{P}:STATUS";
 char iocout[NELM];        assign iocout        to "{P}:IOCOUT";
 
 /* Commands */
-int start;                assign start         to "{P}:START";
-int stop;                assign stop         to "{P}:STOP";
-int restart;            assign restart         to "{P}:RESTART";
-int toggle;                assign toggle         to "{P}:TOGGLE";
+int start;                assign start         to "{P}:START_B";
+int stop;                assign stop         to "{P}:STOP_B";
+int restart;            assign restart         to "{P}:RESTART_B";
+int toggle;                assign toggle         to "{P}:TOGGLE_B";
 
 /* Flags */
 monitor start;            evflag startMon;    sync start startMon;
