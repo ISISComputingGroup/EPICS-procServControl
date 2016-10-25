@@ -34,10 +34,10 @@ int status;                assign status        to "{P}:STATUS";
 char iocout[NELM];        assign iocout        to "{P}:IOCOUT";
 
 /* Commands */
-int start;                assign start         to "{P}:START_B";
-int stop;                assign stop         to "{P}:STOP_B";
-int restart;            assign restart         to "{P}:RESTART_B";
-int toggle;                assign toggle         to "{P}:TOGGLE_B";
+int start;                assign start         to "{P}:START";
+int stop;                assign stop         to "{P}:STOP";
+int restart;            assign restart         to "{P}:RESTART";
+int toggle;                assign toggle         to "{P}:TOGGLE";
 
 /* Flags */
 monitor start;            evflag startMon;    sync start startMon;
@@ -92,7 +92,7 @@ ss ssUserInput {
                 %% writeControlChar(pVar, "\x18");
             }
             start = 0;
-            pvPut(start, SYNC);
+            pvPut(start); /* not using SYNC as Busy record */
         } state MONITORINPUTS
 
         when(efTestAndClear(stopMon) && (stop == 1)) {
@@ -107,7 +107,7 @@ ss ssUserInput {
                 %% writeControlChar(pVar, "\x18");
             }
             stop = 0;
-            pvPut(stop, SYNC);
+            pvPut(stop);  /* not using SYNC as Busy record */
         } state MONITORINPUTS
 
         when(efTestAndClear(restartMon) && (restart == 1)) {
@@ -122,7 +122,7 @@ ss ssUserInput {
                 %% writeControlChar(pVar, "\x18");
             }
             restart = 0;
-            pvPut(restart, SYNC);
+            pvPut(restart);  /* not using SYNC as Busy record */
         } state MONITORINPUTS
 
         when(efTestAndClear(toggleMon) && (toggle == 1)) {
@@ -131,7 +131,7 @@ ss ssUserInput {
                 %% writeControlChar(pVar, "\x14");
             }
             toggle = 0;
-            pvPut(toggle, SYNC);
+            pvPut(toggle);  /* not using SYNC as Busy record */
         } state MONITORINPUTS
     }
 }
