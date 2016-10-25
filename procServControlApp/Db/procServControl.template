@@ -30,6 +30,7 @@ record(bi, "$(P):AUTORESTART") {
   field(DESC, "Autorestart readback")
   field(ZNAM, "Off")
   field(ONAM, "On")
+  info(archive, "VAL")
 }
 
 record(bo, "$(P):SHOWOUT") {
@@ -58,26 +59,31 @@ $(MANUALSTART=)  field(ONSV, "MAJOR")
   field(ONVL, "1")
   field(TWVL, "2")
   field(THVL, "3")  
+  info(archive, "VAL")
 }
 
 #% archiver 10 Monitor
 record(busy, "$(P):TOGGLE") {
   field(DESC, "Autorestart toggle")
+  info(archive, "VAL")
 }
 
 #% archiver 10 Monitor
 record(busy, "$(P):START") {
   field(DESC, "Start IOC")
+  info(archive, "VAL")
 }
 
 #% archiver 10 Monitor
 record(busy, "$(P):STOP") {
   field(DESC, "Stop IOC")
+  info(archive, "VAL")
 }
 
 #% archiver 10 Monitor
 record(busy, "$(P):RESTART") {
   field(DESC, "Restart IOC")
+  info(archive, "VAL")
 }
 
 record(waveform, "$(P):IOCOUT") {
