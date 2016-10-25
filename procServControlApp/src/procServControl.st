@@ -230,7 +230,7 @@ static void createAsynUser(struct UserVar *pVar) {
 static void getNextLine(struct UserVar *pVar) {
     char buffer[LINELENGTH];
     char temp[LINELENGTH];
-    size_t bytes;
+    size_t bytes = 0;
     int eomReason;
     int i, index, yesNo;
 
@@ -272,13 +272,16 @@ static void getNextLine(struct UserVar *pVar) {
         pVar->status = SHUTDOWN;
     }
 
+	/* zero buffer, guarantees termination if we only read LINELENGTH-1 chars */
+	memset(buffer, 0, LINELENGTH);
+
     /* read from the asyn port, if we fail (no data) just return */
-    if (pasynOctetSyncIO->read(pasynUser, buffer, LINELENGTH, 0.1, &bytes, &eomReason)) {
+    if ( pasynOctetSyncIO->read(pasynUser, buffer, LINELENGTH-1, 0.1, &bytes, &eomReason) || (bytes == 0) ) {
         do_sleep(0.1);
+		return;
     }
 
-    /* NULL terminate the buffer and put it in the right place */
-    buffer[LINELENGTH-1] = '\0';
+    /* put buffer in the right place */
     strcpy(pVar->iocLine[pVar->iocLineI], buffer);
     pVar->iocLineI = (pVar->iocLineI + 1) % NLINES;
 
