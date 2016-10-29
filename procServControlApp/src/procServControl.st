@@ -199,9 +199,11 @@ static void do_sleep(float secs)
     sleep(secs);
 #endif /* ifdef _WIN32 */
 }
+
 /* Create an asynUser and set it up using the port name */
 static void createAsynUser(struct UserVar *pVar) {
     int i;
+    asynUser *pasynUser = NULL;
     /* Increment the global state machine counter */
     pVar->stateIndex = stateIndexGlobal++;
     if (stateIndexGlobal > NSTATEMACHINES) {
@@ -209,7 +211,6 @@ static void createAsynUser(struct UserVar *pVar) {
         return;
     }
     /* Connect the port */
-    asynUser *pasynUser = NULL;
     if (pasynOctetSyncIO->connect(pVar->port, 0, &pasynUser, NULL)) {
         /* Invalid port name, can't recover from this */
         printf("***Error: can't connect to asyn port name %s\n", pVar->port);
@@ -233,13 +234,14 @@ static void getNextLine(struct UserVar *pVar) {
     size_t bytes = 0;
     int eomReason;
     int i, index, yesNo;
+	asynUser *pasynUser;
 
     /* By default there is nothing to do on return */
     pVar->lastcommand = NONE;
 
     /* Check that asynUser exists */
     if (pVar->stateIndex >= NSTATEMACHINES) return;
-    asynUser *pasynUser = pasynUsers[pVar->stateIndex];
+    pasynUser = pasynUsers[pVar->stateIndex];
     if (pasynUser == NULL) {
         if (pVar->status == INVALIDPORTNAME) {
             /* we can never recover, but at least we won't use all the CPU... */
@@ -368,10 +370,11 @@ static void getNextLine(struct UserVar *pVar) {
 static void writeControlChar(struct UserVar *pVar, const char *controlChar) {
     size_t bytes;
     int yesNo;
+	asynUser *pasynUser;
 
     /* Check that asynUser exists */
     if (pVar->stateIndex >= NSTATEMACHINES) return;
-    asynUser *pasynUser = pasynUsers[pVar->stateIndex];
+    pasynUser = pasynUsers[pVar->stateIndex];
     if (pasynUser == NULL) return;
 
     /* Check asynUser is connected */
