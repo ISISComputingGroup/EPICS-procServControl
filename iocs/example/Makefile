@@ -6,6 +6,8 @@
 TOP = .
 include $(TOP)/configure/CONFIG
 
+.NOTPARALLEL:
+
 DIRS += configure
 DIRS += exampleApp/Db
 DIRS += exampleApp/src
