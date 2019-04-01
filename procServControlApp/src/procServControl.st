@@ -95,7 +95,7 @@ ss ssUserInput {
             }
             start = 0;
             pvPut(start); /* not using SYNC as Busy record */
-			efSet(statusMon); /* to avoid timeout if start when running */
+            efSet(statusMon); /* to avoid timeout if start when running */
         } state WAITFORRUNNING
 
         when(efTestAndClear(stopMon) && (stop == 1)) {
@@ -111,7 +111,7 @@ ss ssUserInput {
             }
             stop = 0;
             pvPut(stop);  /* not using SYNC as Busy record */
-			efSet(statusMon); /* to avoid timeout if stop when stopped */
+            efSet(statusMon); /* to avoid timeout if stop when stopped */
         } state WAITFORSHUTDOWN
 
         when(efTestAndClear(restartMon) && (restart == 1)) {
@@ -127,7 +127,7 @@ ss ssUserInput {
             }
             restart = 0;
             pvPut(restart);  /* not using SYNC as Busy record */
-			efSet(statusMon); /* to avoid potential timeout error */
+            efSet(statusMon); /* to avoid potential timeout error */
         } state WAITFORRESTART
 
         when(efTestAndClear(toggleMon) && (toggle == 1)) {
@@ -139,44 +139,44 @@ ss ssUserInput {
             pvPut(toggle);  /* not using SYNC as Busy record */
         } state MONITORINPUTS
     }
-	
+    
     state WAITFORSHUTDOWN {
         entry {
         }
-		
+        
         when(efTestAndClear(statusMon) && (status == SHUTDOWN)) {
         } state MONITORINPUTS
 
-		when(delay(5.0)) {
-		    printf("Timeout waiting for SHUTDOWN of %s\n", macValueGet("P"));
-		} state MONITORINPUTS
-	}
+        when(delay(5.0)) {
+            printf("Timeout waiting for SHUTDOWN of %s\n", macValueGet("P"));
+        } state MONITORINPUTS
+    }
 
     state WAITFORRESTART {
         entry {
         }
-		
+        
         when(efTestAndClear(statusMon) && (status == SHUTDOWN)) {
         } state WAITFORRUNNING
 
-		when(delay(5.0)) {
-		    printf("Timeout waiting for RESTART of %s\n", macValueGet("P"));
-		} state MONITORINPUTS
-	}
+        when(delay(5.0)) {
+            printf("Timeout waiting for RESTART of %s\n", macValueGet("P"));
+        } state MONITORINPUTS
+    }
 
     state WAITFORRUNNING {
         entry {
         }
-		
+        
         when(efTestAndClear(statusMon) && (status == RUNNING)) {
         } state MONITORINPUTS
 
-		/* need a long timeout here as tests with sending lots of consecutive
-		   commands seemed to require this */
-		when(delay(30.0)) {
-		    printf("Timeout waiting for RUNNING of %s\n", macValueGet("P"));
-		} state MONITORINPUTS
-	}
+        /* need a long timeout here as tests with sending lots of consecutive
+           commands seemed to require this */
+        when(delay(30.0)) {
+            printf("Timeout waiting for RUNNING of %s\n", macValueGet("P"));
+        } state MONITORINPUTS
+    }
 }
 
 ss ssProcServInput {
@@ -277,7 +277,7 @@ static void getNextLine(struct UserVar *pVar) {
     size_t bytes = 0;
     int eomReason;
     int i, index, yesNo;
-	asynUser *pasynUser;
+    asynUser *pasynUser;
 
     /* By default there is nothing to do on return */
     pVar->lastcommand = NONE;
@@ -317,13 +317,13 @@ static void getNextLine(struct UserVar *pVar) {
         pVar->status = SHUTDOWN;
     }
 
-	/* zero buffer, guarantees termination if we only read LINELENGTH-1 chars */
-	memset(buffer, 0, LINELENGTH);
+    /* zero buffer, guarantees termination if we only read LINELENGTH-1 chars */
+    memset(buffer, 0, LINELENGTH);
 
     /* read from the asyn port, if we fail (no data) just return */
     if ( pasynOctetSyncIO->read(pasynUser, buffer, LINELENGTH-1, 0.1, &bytes, &eomReason) || (bytes == 0) ) {
         do_sleep(0.1f);
-		return;
+        return;
     }
 
     /* put buffer in the right place */
@@ -413,7 +413,7 @@ static void getNextLine(struct UserVar *pVar) {
 static void writeControlChar(struct UserVar *pVar, const char *controlChar) {
     size_t bytes;
     int yesNo;
-	asynUser *pasynUser;
+    asynUser *pasynUser;
 
     /* Check that asynUser exists */
     if (pVar->stateIndex >= NSTATEMACHINES) return;
