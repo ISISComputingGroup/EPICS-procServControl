@@ -44,6 +44,7 @@ monitor start;            evflag startMon;    sync start startMon;
 monitor stop;            evflag stopMon;        sync stop stopMon;
 monitor restart;        evflag restartMon;    sync restart restartMon;
 monitor toggle;            evflag toggleMon;    sync toggle toggleMon;
+monitor status;            evflag statusMon;    sync status statusMon;
 
 /* Internal variables for storing output lines*/
 char iocLine[NLINES][LINELENGTH];
@@ -78,6 +79,7 @@ ss ssUserInput {
             efClear(stopMon);
             efClear(restartMon);
             efClear(toggleMon);
+            efClear(statusMon);
         } state MONITORINPUTS
     }
 
@@ -93,7 +95,8 @@ ss ssUserInput {
             }
             start = 0;
             pvPut(start); /* not using SYNC as Busy record */
-        } state MONITORINPUTS
+            efSet(statusMon); /* to avoid timeout if start when running */
+        } state WAITFORRUNNING
 
         when(efTestAndClear(stopMon) && (stop == 1)) {
             /* If we are running, then make sure autorestart is off, if it isn't
@@ -108,7 +111,8 @@ ss ssUserInput {
             }
             stop = 0;
             pvPut(stop);  /* not using SYNC as Busy record */
-        } state MONITORINPUTS
+            efSet(statusMon); /* to avoid timeout if stop when stopped */
+        } state WAITFORSHUTDOWN
 
         when(efTestAndClear(restartMon) && (restart == 1)) {
             /* If we are running, then make sure autorestart is on, if it isn't
@@ -123,7 +127,8 @@ ss ssUserInput {
             }
             restart = 0;
             pvPut(restart);  /* not using SYNC as Busy record */
-        } state MONITORINPUTS
+            efSet(statusMon); /* to avoid potential timeout error */
+        } state WAITFORRESTART
 
         when(efTestAndClear(toggleMon) && (toggle == 1)) {
             /* If we are running, then send CTRL-T to toggle autorestart */
@@ -132,6 +137,44 @@ ss ssUserInput {
             }
             toggle = 0;
             pvPut(toggle);  /* not using SYNC as Busy record */
+        } state MONITORINPUTS
+    }
+    
+    state WAITFORSHUTDOWN {
+        entry {
+        }
+        
+        when(efTestAndClear(statusMon) && (status == SHUTDOWN)) {
+        } state MONITORINPUTS
+
+        when(delay(5.0)) {
+            printf("Timeout waiting for SHUTDOWN of %s\n", macValueGet("P"));
+        } state MONITORINPUTS
+    }
+
+    state WAITFORRESTART {
+        entry {
+        }
+        
+        when(efTestAndClear(statusMon) && (status == SHUTDOWN)) {
+        } state WAITFORRUNNING
+
+        when(delay(5.0)) {
+            printf("Timeout waiting for RESTART of %s\n", macValueGet("P"));
+        } state MONITORINPUTS
+    }
+
+    state WAITFORRUNNING {
+        entry {
+        }
+        
+        when(efTestAndClear(statusMon) && (status == RUNNING)) {
+        } state MONITORINPUTS
+
+        /* need a long timeout here as tests with sending lots of consecutive
+           commands seemed to require this */
+        when(delay(30.0)) {
+            printf("Timeout waiting for RUNNING of %s\n", macValueGet("P"));
         } state MONITORINPUTS
     }
 }
@@ -234,7 +277,7 @@ static void getNextLine(struct UserVar *pVar) {
     size_t bytes = 0;
     int eomReason;
     int i, index, yesNo;
-	asynUser *pasynUser;
+    asynUser *pasynUser;
 
     /* By default there is nothing to do on return */
     pVar->lastcommand = NONE;
@@ -274,13 +317,13 @@ static void getNextLine(struct UserVar *pVar) {
         pVar->status = SHUTDOWN;
     }
 
-	/* zero buffer, guarantees termination if we only read LINELENGTH-1 chars */
-	memset(buffer, 0, LINELENGTH);
+    /* zero buffer, guarantees termination if we only read LINELENGTH-1 chars */
+    memset(buffer, 0, LINELENGTH);
 
     /* read from the asyn port, if we fail (no data) just return */
     if ( pasynOctetSyncIO->read(pasynUser, buffer, LINELENGTH-1, 0.1, &bytes, &eomReason) || (bytes == 0) ) {
-        do_sleep(0.1);
-		return;
+        do_sleep(0.1f);
+        return;
     }
 
     /* put buffer in the right place */
@@ -370,7 +413,7 @@ static void getNextLine(struct UserVar *pVar) {
 static void writeControlChar(struct UserVar *pVar, const char *controlChar) {
     size_t bytes;
     int yesNo;
-	asynUser *pasynUser;
+    asynUser *pasynUser;
 
     /* Check that asynUser exists */
     if (pVar->stateIndex >= NSTATEMACHINES) return;
