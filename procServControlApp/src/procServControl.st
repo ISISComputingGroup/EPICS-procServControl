@@ -58,7 +58,13 @@ int lastcommand;
 
 /* These are needed to tie up the ppasynUser with the state machine */
 int stateIndex;
-#define NSTATEMACHINES 256
+
+/* we define two ports per ioc in build_ioc_startup, between ports 20000 and 49152
+ * (port 49152 is start of IANA dynamic range for port allocation)
+ * Therefore we can have at most ((49152 - 20000)/2) (=14576) iocs assuming all ports are free
+ * Set max state machines at 10,000 to leave some room for ports which are in use.
+ */
+#define NSTATEMACHINES 10000
 %% static int stateIndexGlobal = 0;
 
 /* C functions and asyn things */
