@@ -6,6 +6,8 @@ program procServControl("P=P")
 #ifdef _WIN32
 %% #include <windows.h>
 %% #include <process.h>
+%% #include <processthreadsapi.h>
+%% #include <userenv.h>
 #else
 %% #include <unistd.h>
 #endif /* ifdef _WIN32 */
@@ -59,6 +61,10 @@ int lastcommand;
 /* These are needed to tie up the ppasynUser with the state machine */
 int stateIndex;
 
+int old_status;
+
+int procserv_launched;
+
 /* we define two ports per ioc in build_ioc_startup, between ports 20000 and 49152
  * (port 49152 is start of IANA dynamic range for port allocation)
  * Therefore we can have at most ((49152 - 20000)/2) (=14576) iocs assuming all ports are free
@@ -71,6 +77,7 @@ int stateIndex;
 %% #include <asynOctetSyncIO.h>
 %% static asynUser* pasynUsers[NSTATEMACHINES];
 %% static void createAsynUser(struct UserVar *pVar);
+%% static void startProcserv(struct UserVar *pVar);
 %% static void getNextLine(struct UserVar *pVar);
 %% static void writeControlChar(struct UserVar *pVar, const char *controlChar);
 
@@ -94,7 +101,16 @@ ss ssUserInput {
         entry {
         }
 
-        when(efTestAndClear(startMon) && (start == 1)) {
+        when( (status == PROCSERVSTOPPED) && (procserv_launched == 0) && (
+                (efTest(startMon) && (start == 1)) ||
+                (efTest(stopMon) && (stop == 1)) ||
+                (efTest(restartMon) && (restart == 1)) ||
+                (efTest(toggleMon) && (toggle == 1)) ) ) {
+            startProcserv(pVar);
+            procserv_launched = 1;
+        } state MONITORINPUTS
+
+        when((status != PROCSERVSTOPPED) && efTestAndClear(startMon) && (start == 1)) {
             /* If we are shutdown then send CTRL-X to start */
             if (status == SHUTDOWN) {
                 %% writeControlChar(pVar, "\x18");
@@ -104,8 +120,8 @@ ss ssUserInput {
             efSet(statusMon); /* to avoid timeout if start when running */
         } state WAITFORRUNNING
 
-        when(efTestAndClear(stopMon) && (stop == 1)) {
-            /* If we are running, then make sure autorestart is off, if it isn't
+        when((status != PROCSERVSTOPPED) && efTestAndClear(stopMon) && (stop == 1)) {
+            /* If we are running, then make sure autorestart is off, if it is not
              * send CTRL-T, then send CTRL-X to stop */
             if (status == RUNNING) {
                 if (autorestart == 1) {
@@ -120,15 +136,17 @@ ss ssUserInput {
             efSet(statusMon); /* to avoid timeout if stop when stopped */
         } state WAITFORSHUTDOWN
 
-        when(efTestAndClear(restartMon) && (restart == 1)) {
-            /* If we are running, then make sure autorestart is on, if it isn't
-             * send CTRL-T, then send CTRL-X to restart */
-            if (status == RUNNING) {
-                if (autorestart == 0) {
-                    %% writeControlChar(pVar, "\x14");
-                    autorestart = 1;
-                    pvPut(autorestart, SYNC);
-                }
+        when((status != PROCSERVSTOPPED) && efTestAndClear(restartMon) && (restart == 1)) {
+            /* Make sure autorestart is on, if it is not
+             * send CTRL-T
+             * if we are running send CTRL-X to restart */
+            old_status = status; /* save status in case changed by toggle autorestart */
+            if (autorestart == 0) {
+                %% writeControlChar(pVar, "\x14");
+                autorestart = 1;
+                pvPut(autorestart, SYNC);
+            }
+            if (old_status == RUNNING) {
                 %% writeControlChar(pVar, "\x18");
             }
             restart = 0;
@@ -136,8 +154,11 @@ ss ssUserInput {
             efSet(statusMon); /* to avoid potential timeout error */
         } state WAITFORRESTART
 
-        when(efTestAndClear(toggleMon) && (toggle == 1)) {
-            /* If we are running, then send CTRL-T to toggle autorestart */
+        when((status != PROCSERVSTOPPED) && efTestAndClear(toggleMon) && (toggle == 1)) {
+            /* Send CTRL-T to toggle autorestart */
+            /*%% writeControlChar(pVar, "\x14");
+            autorestart = !autorestart;
+            pvPut(autorestart, SYNC);*/
             if (status == RUNNING) {
                 %% writeControlChar(pVar, "\x14");
             }
@@ -261,8 +282,8 @@ static void createAsynUser(struct UserVar *pVar) {
     }
     /* Connect the port */
     if (pasynOctetSyncIO->connect(pVar->port, 0, &pasynUser, NULL)) {
-        /* Invalid port name, can't recover from this */
-        printf("***Error: can't connect to asyn port name %s\n", pVar->port);
+        /* Invalid port name, cannot recover from this */
+        printf("***Error: cannot connect to asyn port name %s\n", pVar->port);
         pasynUser = NULL;
     } else {
         pasynOctetSyncIO->setInputEos(pasynUser, "\r\n", 2);
@@ -293,7 +314,7 @@ static void getNextLine(struct UserVar *pVar) {
     pasynUser = pasynUsers[pVar->stateIndex];
     if (pasynUser == NULL) {
         if (pVar->status == INVALIDPORTNAME) {
-            /* we can never recover, but at least we won't use all the CPU... */
+            /* we can never recover, but at least we will not use all the CPU... */
             do_sleep(1);
         } else {
             pVar->lastcommand = STATUS;
@@ -317,8 +338,8 @@ static void getNextLine(struct UserVar *pVar) {
         /* need to set the right eos if the port has just connected */
         pasynOctetSyncIO->setInputEos(pasynUser, "\r\n", 2);
         pasynOctetSyncIO->setOutputEos(pasynUser, "", 0);
-        /* Note we don't set lastcommand as the status is just being used as
-         * a flag so we don't set Eos many times. If it has just connected
+        /* Note we do not set lastcommand as the status is just being used as
+         * a flag so we do not set Eos many times. If it has just connected
          * procServ will tell us the status in 4 lines time anyway... */
         pVar->status = SHUTDOWN;
     }
@@ -434,6 +455,53 @@ static void writeControlChar(struct UserVar *pVar, const char *controlChar) {
     pasynOctetSyncIO->write(pasynUser, controlChar, 1, 1.0, &bytes);
 }
 
+/* start procserv. We do not want to inherit the process environment
+   as we are spawned from procServControl ioc and its environment can
+   confuse the ioc we create, hence the slightly convoluted process creation
+   to not inherit process variables but try to inherit user/system ones
+*/
+static void startProcserv(struct UserVar *pVar) {
+    asynUser *pasynUser;
+    const char* epics_kit_root = getenv("EPICS_KIT_ROOT");
+    char command[256];
+#ifdef _WIN32
+    const char* comspec = getenv("ComSpec");
+    LPVOID lpEnv = NULL;
+    STARTUPINFO si;
+    PROCESS_INFORMATION pi;
+    BOOL status;
+    DWORD dwCreationFlags = 0;
+    ZeroMemory( &si, sizeof(si) );
+    si.cb = sizeof(si);
+    ZeroMemory( &pi, sizeof(pi) );
+    if (epics_kit_root != NULL) {
+        sprintf(command, "\"%s\" /c \"%s\\iocstartup\\ioc_bats\\%s.bat\"", comspec, epics_kit_root, pVar->port);
+        printf("startProcserv: Running %s\n", command);
+        if (!CreateEnvironmentBlock(&lpEnv, GetCurrentProcessToken(), FALSE)) {
+            printf("startProcserv: Cannot create environment: error 0x%08x\n", GetLastError());
+            return;
+        }
+        dwCreationFlags |= CREATE_UNICODE_ENVIRONMENT; /* CreateEnvironmentBlock returns unicode */
+        status = CreateProcess(NULL, command, NULL, NULL, FALSE, dwCreationFlags, lpEnv, NULL, &si, &pi);
+        if (!status) {
+            printf("startProcserv: Cannot create process: error 0x%08x\n", GetLastError());
+        }
+        DestroyEnvironmentBlock(lpEnv);
+        if (!status) {
+            return;
+        }
+        CloseHandle(pi.hProcess);
+        CloseHandle(pi.hThread);
+
+        /* Check that asynUser exists */
+        if (pVar->stateIndex >= NSTATEMACHINES) return;
+        pasynUser = pasynUsers[pVar->stateIndex];
+        if (pasynUser == NULL) return;
+
+        /* enable autoconnect now we have launched procserv */
+        pasynManager->autoConnect(pasynUser, 1);
+    }
+#endif
+}
+
 }%
-
-
