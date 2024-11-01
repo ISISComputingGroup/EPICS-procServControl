@@ -22,5 +22,6 @@ procServControl_LIBS += asyn seq
 
 # We need to link against the EPICS Base libraries
 procServControl_LIBS += $(EPICS_BASE_IOC_LIBS)
+procServControl_SYS_LIBS_WIN32 += Userenv
 
 include $(TOP)/configure/RULES
