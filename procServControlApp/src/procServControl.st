@@ -458,6 +458,11 @@ static void startProcserv(struct UserVar *pVar) {
     asynUser *pasynUser;
     const char* epics_kit_root = getenv("EPICS_KIT_ROOT");
     char command[256];
+    int i, yesNo;
+     /* second to wait after launch before try autoconnect, if does not initially
+        connect it may be 20 seconds before retry */
+    static const double CONNECT_INITIAL_WAIT = 2.0;
+    static const double CONNECT_CHECK_WAIT = 0.5;
 #ifdef _WIN32
     const char* comspec = getenv("ComSpec");
     LPVOID lpEnv = NULL;
@@ -478,14 +483,14 @@ static void startProcserv(struct UserVar *pVar) {
         dwCreationFlags |= CREATE_UNICODE_ENVIRONMENT; /* CreateEnvironmentBlock returns unicode */
         status = CreateProcess(NULL, command, NULL, NULL, FALSE, dwCreationFlags, lpEnv, NULL, &si, &pi);
         if (!status) {
-            printf("startProcserv: Cannot create process: error 0x%08x\n", GetLastError());
+            printf("startProcserv: Cannot create process for %s: error 0x%08x\n", pVar->port, GetLastError());
         }
         DestroyEnvironmentBlock(lpEnv);
         if (!status) {
             return;
         }
-        CloseHandle(pi.hProcess);
         CloseHandle(pi.hThread);
+        CloseHandle(pi.hProcess);
 
         /* Check that asynUser exists */
         if (pVar->stateIndex >= NSTATEMACHINES) return;
@@ -493,7 +498,19 @@ static void startProcserv(struct UserVar *pVar) {
         if (pasynUser == NULL) return;
 
         /* enable autoconnect now we have launched procserv */
+        epicsThreadSleep(CONNECT_INITIAL_WAIT);
         pasynManager->autoConnect(pasynUser, 1);
+        yesNo = 0;
+        /* need to wait up to 20 seconds as default asyn connect retry */
+        for(i=0; !yesNo && i< (int)(25.0 / CONNECT_CHECK_WAIT); ++i) {
+            epicsThreadSleep(CONNECT_CHECK_WAIT);
+            pasynManager->isConnected(pasynUser, &yesNo);
+        }
+        if (yesNo == 1) {
+            printf("startProcserv: %s connected after %f seconds\n", pVar->port, CONNECT_INITIAL_WAIT + CONNECT_CHECK_WAIT * i);
+        } else {
+            printf("startProcserv: WARNING: %s not yet connected after %f seconds\n", pVar->port, CONNECT_INITIAL_WAIT + CONNECT_CHECK_WAIT * i);
+        }
     }
 #endif
 }
