@@ -458,6 +458,7 @@ static void startProcserv(struct UserVar *pVar) {
     asynUser *pasynUser;
     const char* epics_kit_root = getenv("EPICS_KIT_ROOT");
     char command[256];
+    int i, yesNo;
 #ifdef _WIN32
     const char* comspec = getenv("ComSpec");
     LPVOID lpEnv = NULL;
@@ -484,8 +485,8 @@ static void startProcserv(struct UserVar *pVar) {
         if (!status) {
             return;
         }
-        CloseHandle(pi.hProcess);
         CloseHandle(pi.hThread);
+        CloseHandle(pi.hProcess);
 
         /* Check that asynUser exists */
         if (pVar->stateIndex >= NSTATEMACHINES) return;
@@ -493,7 +494,17 @@ static void startProcserv(struct UserVar *pVar) {
         if (pasynUser == NULL) return;
 
         /* enable autoconnect now we have launched procserv */
+        epicsThreadSleep(0.2);
         pasynManager->autoConnect(pasynUser, 1);
+        yesNo = 0;
+        pasynManager->isConnected(pasynUser, &yesNo);
+        for(i=0; !yesNo && i<10; ++i) {
+            epicsThreadSleep(0.1);
+            pasynManager->isConnected(pasynUser, &yesNo);
+        }
+        if (yesNo == 0) {
+            printf("startProcserv: not yet connected\n");
+        }
     }
 #endif
 }
