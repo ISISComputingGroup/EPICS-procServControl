@@ -3,6 +3,7 @@ program procServControl("P=P")
 %% #include <stdio.h>
 %% #include <stdlib.h>
 %% #include <string.h>
+%% #include <epicsMutex.h>
 #ifdef _WIN32
 %% #include <windows.h>
 %% #include <process.h>
@@ -79,10 +80,14 @@ int procserv_launched;
 %% static void startProcserv(struct UserVar *pVar);
 %% static void getNextLine(struct UserVar *pVar);
 %% static void writeControlChar(struct UserVar *pVar, const char *controlChar);
+%% static epicsMutexId procsrvLaunchLock = NULL;
+%% static epicsThreadOnceId onceId = EPICS_THREAD_ONCE_INIT;
+%% static void procsrvLaunchLockInit(void *arg);
 
 ss ssUserInput {
     state INIT {
         entry {
+            %% epicsThreadOnce(&onceId, &procsrvLaunchLockInit, NULL);
         }
 
         when() {
@@ -449,6 +454,11 @@ static void writeControlChar(struct UserVar *pVar, const char *controlChar) {
     pasynOctetSyncIO->write(pasynUser, controlChar, 1, 1.0, &bytes);
 }
 
+static void procsrvLaunchLockInit(void *arg)
+{
+    procsrvLaunchLock = epicsMutexMustCreate();
+}
+
 /* start procserv. We do not want to inherit the process environment
    as we are spawned from procServControl ioc and its environment can
    confuse the ioc we create, hence the slightly convoluted process creation
@@ -463,6 +473,7 @@ static void startProcserv(struct UserVar *pVar) {
         connect it may be 20 seconds before retry */
     static const double CONNECT_INITIAL_WAIT = 2.0;
     static const double CONNECT_CHECK_WAIT = 0.5;
+    static const double LAUNCH_WAIT = 0.2;
 #ifdef _WIN32
     const char* comspec = getenv("ComSpec");
     LPVOID lpEnv = NULL;
@@ -481,10 +492,14 @@ static void startProcserv(struct UserVar *pVar) {
             return;
         }
         dwCreationFlags |= CREATE_UNICODE_ENVIRONMENT; /* CreateEnvironmentBlock returns unicode */
+        /* this is to stop too many simultaneous procserv launches that looks like it may cause issues */
+        epicsMutexLock(procsrvLaunchLock);
         status = CreateProcess(NULL, command, NULL, NULL, FALSE, dwCreationFlags, lpEnv, NULL, &si, &pi);
         if (!status) {
             printf("startProcserv: Cannot create process for %s: error 0x%08x\n", pVar->port, GetLastError());
         }
+        epicsThreadSleep(LAUNCH_WAIT);
+        epicsMutexUnlock(procsrvLaunchLock);
         DestroyEnvironmentBlock(lpEnv);
         if (!status) {
             return;
