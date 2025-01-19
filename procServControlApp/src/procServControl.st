@@ -471,9 +471,10 @@ static void startProcserv(struct UserVar *pVar) {
     int i, yesNo;
      /* second to wait after launch before try autoconnect, if does not initially
         connect it may be 20 seconds before retry */
-    static const double CONNECT_INITIAL_WAIT = 2.0;
+    static const double CONNECT_INITIAL_WAIT = 2.0; /* make long enough to hopefully auto-connect on first try */
     static const double CONNECT_CHECK_WAIT = 0.5;
-    static const double LAUNCH_WAIT = 0.2;
+    static const double CONNECT_TOTAL_WAIT = 25.0; /* at least 20 seconds to be greater than default asyn-connect retry */
+    static const double LAUNCH_WAIT = 0.2; /* time to hold global procServ launch lock for */
 #ifdef _WIN32
     const char* comspec = getenv("ComSpec");
     LPVOID lpEnv = NULL;
@@ -492,7 +493,7 @@ static void startProcserv(struct UserVar *pVar) {
             return;
         }
         dwCreationFlags |= CREATE_UNICODE_ENVIRONMENT; /* CreateEnvironmentBlock returns unicode */
-        /* this is to stop too many simultaneous procserv launches that looks like it may cause issues */
+        /* use lock and sleep to stop too many simultaneous procserv launches that looks like it may cause issues */
         epicsMutexLock(procsrvLaunchLock);
         status = CreateProcess(NULL, command, NULL, NULL, FALSE, dwCreationFlags, lpEnv, NULL, &si, &pi);
         if (!status) {
@@ -517,7 +518,7 @@ static void startProcserv(struct UserVar *pVar) {
         pasynManager->autoConnect(pasynUser, 1);
         yesNo = 0;
         /* need to wait up to 20 seconds as default asyn connect retry */
-        for(i=0; !yesNo && i< (int)(25.0 / CONNECT_CHECK_WAIT); ++i) {
+        for(i=0; !yesNo && i< (int)(CONNECT_TOTAL_WAIT / CONNECT_CHECK_WAIT); ++i) {
             epicsThreadSleep(CONNECT_CHECK_WAIT);
             pasynManager->isConnected(pasynUser, &yesNo);
         }
