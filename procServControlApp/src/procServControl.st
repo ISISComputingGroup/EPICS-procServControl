@@ -3,6 +3,7 @@ program procServControl("P=P")
 %% #include <stdio.h>
 %% #include <stdlib.h>
 %% #include <string.h>
+%% #include <epicsMutex.h>
 #ifdef _WIN32
 %% #include <windows.h>
 %% #include <process.h>
@@ -62,7 +63,7 @@ int lastcommand;
 int stateIndex;
 
 int old_status;
-
+/* have we launched a procServ */
 int procserv_launched;
 
 /* we define two ports per ioc in build_ioc_startup, between ports 20000 and 49152
@@ -80,10 +81,14 @@ int procserv_launched;
 %% static void startProcserv(struct UserVar *pVar);
 %% static void getNextLine(struct UserVar *pVar);
 %% static void writeControlChar(struct UserVar *pVar, const char *controlChar);
+%% static epicsMutexId procsrvLaunchLock = NULL;
+%% static epicsThreadOnceId onceId = EPICS_THREAD_ONCE_INIT;
+%% static void procsrvLaunchLockInit(void *arg);
 
 ss ssUserInput {
     state INIT {
         entry {
+            %% epicsThreadOnce(&onceId, &procsrvLaunchLockInit, NULL);
         }
 
         when() {
@@ -135,7 +140,7 @@ ss ssUserInput {
             efSet(statusMon); /* to avoid timeout if stop when stopped */
         } state WAITFORSHUTDOWN
 
-        when((status == RUNNING) && efTestAndClear(restartMon) && (restart == 1)) {
+        when((status != PROCSERVSTOPPED) && (status == RUNNING) && efTestAndClear(restartMon) && (restart == 1)) {
             /* Make sure autorestart is on, if it is not
              * send CTRL-T
              * if we are running send CTRL-X to restart */
@@ -458,6 +463,11 @@ static void writeControlChar(struct UserVar *pVar, const char *controlChar) {
     pasynOctetSyncIO->write(pasynUser, controlChar, 1, 1.0, &bytes);
 }
 
+static void procsrvLaunchLockInit(void *arg)
+{
+    procsrvLaunchLock = epicsMutexMustCreate();
+}
+
 /* start procserv. We do not want to inherit the process environment
    as we are spawned from procServControl ioc and its environment can
    confuse the ioc we create, hence the slightly convoluted process creation
@@ -467,6 +477,13 @@ static void startProcserv(struct UserVar *pVar) {
     asynUser *pasynUser;
     const char* epics_kit_root = getenv("EPICS_KIT_ROOT");
     char command[256];
+    int i, yesNo;
+     /* second to wait after launch before try autoconnect, if does not initially
+        connect it may be 20 seconds before retry */
+    static const double CONNECT_INITIAL_WAIT = 2.0; /* make long enough to hopefully auto-connect on first try */
+    static const double CONNECT_CHECK_WAIT = 0.5;
+    static const double CONNECT_TOTAL_WAIT = 25.0; /* at least 20 seconds to be greater than default asyn-connect retry */
+    static const double LAUNCH_WAIT = 0.2; /* time to hold global procServ launch lock for */
 #ifdef _WIN32
     const char* comspec = getenv("ComSpec");
     LPVOID lpEnv = NULL;
@@ -485,16 +502,20 @@ static void startProcserv(struct UserVar *pVar) {
             return;
         }
         dwCreationFlags |= CREATE_UNICODE_ENVIRONMENT; /* CreateEnvironmentBlock returns unicode */
+        /* use lock and sleep to stop too many simultaneous procserv launches that looks like it may cause issues */
+        epicsMutexLock(procsrvLaunchLock);
         status = CreateProcess(NULL, command, NULL, NULL, FALSE, dwCreationFlags, lpEnv, NULL, &si, &pi);
         if (!status) {
-            printf("startProcserv: Cannot create process: error 0x%08x\n", GetLastError());
+            printf("startProcserv: Cannot create process for %s: error 0x%08x\n", pVar->port, GetLastError());
         }
+        epicsThreadSleep(LAUNCH_WAIT);
+        epicsMutexUnlock(procsrvLaunchLock);
         DestroyEnvironmentBlock(lpEnv);
         if (!status) {
             return;
         }
-        CloseHandle(pi.hProcess);
         CloseHandle(pi.hThread);
+        CloseHandle(pi.hProcess);
 
         /* Check that asynUser exists */
         if (pVar->stateIndex >= NSTATEMACHINES) return;
@@ -502,7 +523,19 @@ static void startProcserv(struct UserVar *pVar) {
         if (pasynUser == NULL) return;
 
         /* enable autoconnect now we have launched procserv */
+        epicsThreadSleep(CONNECT_INITIAL_WAIT);
         pasynManager->autoConnect(pasynUser, 1);
+        yesNo = 0;
+        /* need to wait up to 20 seconds as default asyn connect retry */
+        for(i=0; !yesNo && i< (int)(CONNECT_TOTAL_WAIT / CONNECT_CHECK_WAIT); ++i) {
+            epicsThreadSleep(CONNECT_CHECK_WAIT);
+            pasynManager->isConnected(pasynUser, &yesNo);
+        }
+        if (yesNo == 1) {
+            printf("startProcserv: %s connected after %f seconds\n", pVar->port, CONNECT_INITIAL_WAIT + CONNECT_CHECK_WAIT * i);
+        } else {
+            printf("startProcserv: WARNING: %s not yet connected after %f seconds\n", pVar->port, CONNECT_INITIAL_WAIT + CONNECT_CHECK_WAIT * i);
+        }
     }
 #endif
 }

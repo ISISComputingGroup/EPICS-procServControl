@@ -22,5 +22,7 @@ example_LIBS += asyn
 example_LIBS += $(EPICS_BASE_IOC_LIBS)
 example_SRCS += exampleMain.cpp
 
+example_SYS_LIBS_WIN32 += Userenv
+
 include $(TOP)/configure/RULES
 
