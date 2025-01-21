@@ -459,6 +459,12 @@ static void procsrvLaunchLockInit(void *arg)
     procsrvLaunchLock = epicsMutexMustCreate();
 }
 
+static double getEnvDoubleValue(const char* var, double default_value)
+{
+    const char* env_value = getenv(var);
+    return env_value != NULL ? atof(env_value) : default_value;
+}
+
 /* start procserv. We do not want to inherit the process environment
    as we are spawned from procServControl ioc and its environment can
    confuse the ioc we create, hence the slightly convoluted process creation
@@ -471,10 +477,10 @@ static void startProcserv(struct UserVar *pVar) {
     int i, yesNo;
      /* second to wait after launch before try autoconnect, if does not initially
         connect it may be 20 seconds before retry */
-    static const double CONNECT_INITIAL_WAIT = 2.0; /* make long enough to hopefully auto-connect on first try */
-    static const double CONNECT_CHECK_WAIT = 0.5;
-    static const double CONNECT_TOTAL_WAIT = 25.0; /* at least 20 seconds to be greater than default asyn-connect retry */
-    static const double LAUNCH_WAIT = 0.2; /* time to hold global procServ launch lock for */
+    const double CONNECT_INITIAL_WAIT = getEnvDoubleValue("CONNECT_INITIAL_WAIT", 2.0); /* make long enough to hopefully auto-connect on first try */
+    const double CONNECT_CHECK_WAIT = getEnvDoubleValue("CONNECT_CHECK_WAIT", 0.5);
+    const double CONNECT_TOTAL_WAIT = getEnvDoubleValue("CONNECT_TOTAL_WAIT", 25.0); /* at least 20 seconds to be greater than default asyn-connect retry */
+    const double LAUNCH_WAIT = getEnvDoubleValue("LAUNCH_WAIT", 0.2); /* time to hold global procServ launch lock for */
 #ifdef _WIN32
     const char* comspec = getenv("ComSpec");
     LPVOID lpEnv = NULL;
