@@ -129,9 +129,9 @@ ss ssUserInput {
              * send CTRL-T, then send CTRL-X to stop */
             if (status == RUNNING) {
                 if (autorestart == 1) {
-                    %% writeControlChar(pVar, "\x14");
                     autorestart = 0;
                     pvPut(autorestart, SYNC);
+                    %% writeControlChar(pVar, "\x14");
                 }
                 %% writeControlChar(pVar, "\x18");
             }
@@ -140,27 +140,33 @@ ss ssUserInput {
             efSet(statusMon); /* to avoid timeout if stop when stopped */
         } state WAITFORSHUTDOWN
 
-        when((status != PROCSERVSTOPPED) && efTestAndClear(restartMon) && (restart == 1)) {
+        when((status == RUNNING) && efTestAndClear(restartMon) && (restart == 1)) {
             /* If we are running, then make sure autorestart is on, if it isn't
              * send CTRL-T, then send CTRL-X to restart */
-            if (status == RUNNING) {
-                if (autorestart == 0) {
-                    %% writeControlChar(pVar, "\x14");
-                    autorestart = 1;
-                    pvPut(autorestart, SYNC);
-                }
-                %% writeControlChar(pVar, "\x18");
+            if (autorestart == 0) {
+                autorestart = 1;
+                pvPut(autorestart, SYNC);
+                %% writeControlChar(pVar, "\x14");
             }
+            %% writeControlChar(pVar, "\x18");
             restart = 0;
             pvPut(restart);  /* not using SYNC as Busy record */
             efSet(statusMon); /* to avoid potential timeout error */
         } state WAITFORRESTART
 
+        when((status == SHUTDOWN) && efTestAndClear(restartMon) && (restart == 1)) {
+            /* send CTRL-X to restart */
+            %% writeControlChar(pVar, "\x18");
+            restart = 0;
+            pvPut(restart);  /* not using SYNC as Busy record */
+            efSet(statusMon); /* to avoid potential timeout error */
+        } state WAITFORRUNNING
+
         when((status != PROCSERVSTOPPED) && efTestAndClear(toggleMon) && (toggle == 1)) {
-            /* If we are running, then send CTRL-T to toggle autorestart */
-            if (status == RUNNING) {
-                %% writeControlChar(pVar, "\x14");
-            }
+            /* send CTRL-T to toggle autorestart */
+            autorestart = !autorestart; /* update local value in case of delay from parsing status */
+            pvPut(autorestart, SYNC);
+            %% writeControlChar(pVar, "\x14");
             toggle = 0;
             pvPut(toggle);  /* not using SYNC as Busy record */
         } state MONITORINPUTS
@@ -199,7 +205,22 @@ ss ssUserInput {
 
         /* need a long timeout here as tests with sending lots of consecutive
            commands seemed to require this */
-        when(delay(30.0)) {
+        when(delay(15.0)) {
+            printf("Still waiting for RUNNING - resending start for %s\n", macValueGet("P"));
+             %% writeControlChar(pVar, "\x18");
+        } state WAITFORRUNNING2
+    }
+
+    state WAITFORRUNNING2 {
+        entry {
+        }
+
+        when(efTestAndClear(statusMon) && (status == RUNNING)) {
+        } state MONITORINPUTS
+
+        /* need a long timeout here as tests with sending lots of consecutive
+           commands seemed to require this */
+        when(delay(15.0)) {
             printf("Timeout waiting for RUNNING of %s\n", macValueGet("P"));
         } state MONITORINPUTS
     }
