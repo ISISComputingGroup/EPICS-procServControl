@@ -156,6 +156,7 @@ ss ssUserInput {
 
         when((status == SHUTDOWN) && efTestAndClear(restartMon) && (restart == 1)) {
             /* send CTRL-X to restart */
+            printf("DEBUG: doing restart from SHUTDOWN for %s\n", macValueGet("P"));
             %% writeControlChar(pVar, "\x18");
             restart = 0;
             pvPut(restart);  /* not using SYNC as Busy record */
@@ -163,10 +164,14 @@ ss ssUserInput {
         } state WAITFORRUNNING
 
         when((status != PROCSERVSTOPPED) && efTestAndClear(toggleMon) && (toggle == 1)) {
-            /* send CTRL-T to toggle autorestart */
-            autorestart = !autorestart; /* update local value in case of delay from parsing status */
-            pvPut(autorestart, SYNC);
-            %% writeControlChar(pVar, "\x14");
+            /* If we are running, then send CTRL-T to toggle autorestart */
+            if (status == RUNNING) {
+                autorestart = !autorestart; /* update local value in case of delay from parsing status */
+                pvPut(autorestart, SYNC);
+                %% writeControlChar(pVar, "\x14");
+            } else {
+                printf("DEBUG: ignoring toggle as not running for %s\n", macValueGet("P"));
+            }
             toggle = 0;
             pvPut(toggle);  /* not using SYNC as Busy record */
         } state MONITORINPUTS
@@ -180,7 +185,7 @@ ss ssUserInput {
         } state MONITORINPUTS
 
         when(delay(5.0)) {
-            printf("Timeout waiting for SHUTDOWN of %s\n", macValueGet("P"));
+            printf("WARNING: Timeout waiting for SHUTDOWN of %s\n", macValueGet("P"));
         } state MONITORINPUTS
     }
 
@@ -192,7 +197,7 @@ ss ssUserInput {
         } state WAITFORRUNNING
 
         when(delay(5.0)) {
-            printf("Timeout waiting for RESTART of %s\n", macValueGet("P"));
+            printf("WARNING: Timeout waiting for RESTART of %s\n", macValueGet("P"));
         } state MONITORINPUTS
     }
 
@@ -206,7 +211,7 @@ ss ssUserInput {
         /* need a long timeout here as tests with sending lots of consecutive
            commands seemed to require this */
         when(delay(15.0)) {
-            printf("Still waiting for RUNNING - resending start for %s\n", macValueGet("P"));
+            printf("WARNING: Still waiting for RUNNING - resending start for %s\n", macValueGet("P"));
              %% writeControlChar(pVar, "\x18");
         } state WAITFORRUNNING2
     }
@@ -221,7 +226,7 @@ ss ssUserInput {
         /* need a long timeout here as tests with sending lots of consecutive
            commands seemed to require this */
         when(delay(15.0)) {
-            printf("Timeout waiting for RUNNING of %s\n", macValueGet("P"));
+            printf("ERROR: Timeout waiting for RUNNING of %s\n", macValueGet("P"));
         } state MONITORINPUTS
     }
 }
