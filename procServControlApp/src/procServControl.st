@@ -209,9 +209,10 @@ ss ssUserInput {
         } state MONITORINPUTS
 
         /* the default procserv delay between a stop and start when a restart is signalled is 15 seconds */
-        when(delay(20.0)) {
-            printf("WARNING: Still waiting for RUNNING - resending start for %s\n", macValueGet("P"));
-             %% writeControlChar(pVar, "\x18");
+        when(delay(30.0)) {
+            printf("WARNING: Still waiting for RUNNING (autorestart = %s) - resending start for %s\n",
+                       (autorestart != 0 ? "ON" : "OFF"), macValueGet("P"));
+            %% writeControlChar(pVar, "\x18");
         } state WAITFORRUNNING2
     }
 
@@ -223,7 +224,8 @@ ss ssUserInput {
         } state MONITORINPUTS
 
         when(delay(20.0)) {
-            printf("ERROR: Timeout waiting for RUNNING of %s\n", macValueGet("P"));
+            printf("ERROR: Timeout waiting for RUNNING of %s (autorestart = %s)\n",
+                macValueGet("P"), (autorestart != 0 ? "ON" : "OFF"));
         } state MONITORINPUTS
     }
 }
