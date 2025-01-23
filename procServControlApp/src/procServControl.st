@@ -208,9 +208,8 @@ ss ssUserInput {
         when(efTestAndClear(statusMon) && (status == RUNNING)) {
         } state MONITORINPUTS
 
-        /* need a long timeout here as tests with sending lots of consecutive
-           commands seemed to require this */
-        when(delay(15.0)) {
+        /* the default procserv delay between a stop and start when a restart is signalled is 15 seconds */
+        when(delay(20.0)) {
             printf("WARNING: Still waiting for RUNNING - resending start for %s\n", macValueGet("P"));
              %% writeControlChar(pVar, "\x18");
         } state WAITFORRUNNING2
@@ -223,9 +222,7 @@ ss ssUserInput {
         when(efTestAndClear(statusMon) && (status == RUNNING)) {
         } state MONITORINPUTS
 
-        /* need a long timeout here as tests with sending lots of consecutive
-           commands seemed to require this */
-        when(delay(15.0)) {
+        when(delay(20.0)) {
             printf("ERROR: Timeout waiting for RUNNING of %s\n", macValueGet("P"));
         } state MONITORINPUTS
     }
