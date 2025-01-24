@@ -129,9 +129,9 @@ ss ssUserInput {
              * send CTRL-T, then send CTRL-X to stop */
             if (status == RUNNING) {
                 if (autorestart == 1) {
-                    %% writeControlChar(pVar, "\x14");
                     autorestart = 0;
                     pvPut(autorestart, SYNC);
+                    %% writeControlChar(pVar, "\x14");
                 }
                 %% writeControlChar(pVar, "\x18");
             }
@@ -140,26 +140,37 @@ ss ssUserInput {
             efSet(statusMon); /* to avoid timeout if stop when stopped */
         } state WAITFORSHUTDOWN
 
-        when((status != PROCSERVSTOPPED) && efTestAndClear(restartMon) && (restart == 1)) {
+        when((status == RUNNING) && efTestAndClear(restartMon) && (restart == 1)) {
             /* If we are running, then make sure autorestart is on, if it isn't
              * send CTRL-T, then send CTRL-X to restart */
-            if (status == RUNNING) {
-                if (autorestart == 0) {
-                    %% writeControlChar(pVar, "\x14");
-                    autorestart = 1;
-                    pvPut(autorestart, SYNC);
-                }
-                %% writeControlChar(pVar, "\x18");
+            if (autorestart == 0) {
+                autorestart = 1;
+                pvPut(autorestart, SYNC);
+                %% writeControlChar(pVar, "\x14");
             }
+            %% writeControlChar(pVar, "\x18");
             restart = 0;
             pvPut(restart);  /* not using SYNC as Busy record */
             efSet(statusMon); /* to avoid potential timeout error */
         } state WAITFORRESTART
 
+        when((status == SHUTDOWN) && efTestAndClear(restartMon) && (restart == 1)) {
+            /* send CTRL-X to restart */
+            printf("DEBUG: doing restart from SHUTDOWN for %s\n", macValueGet("P"));
+            %% writeControlChar(pVar, "\x18");
+            restart = 0;
+            pvPut(restart);  /* not using SYNC as Busy record */
+            efSet(statusMon); /* to avoid potential timeout error */
+        } state WAITFORRUNNING
+
         when((status != PROCSERVSTOPPED) && efTestAndClear(toggleMon) && (toggle == 1)) {
             /* If we are running, then send CTRL-T to toggle autorestart */
             if (status == RUNNING) {
+                autorestart = !autorestart; /* update local value in case of delay from parsing status */
+                pvPut(autorestart, SYNC);
                 %% writeControlChar(pVar, "\x14");
+            } else {
+                printf("DEBUG: ignoring toggle as not running for %s\n", macValueGet("P"));
             }
             toggle = 0;
             pvPut(toggle);  /* not using SYNC as Busy record */
@@ -174,7 +185,7 @@ ss ssUserInput {
         } state MONITORINPUTS
 
         when(delay(5.0)) {
-            printf("Timeout waiting for SHUTDOWN of %s\n", macValueGet("P"));
+            printf("WARNING: Timeout waiting for SHUTDOWN of %s\n", macValueGet("P"));
         } state MONITORINPUTS
     }
 
@@ -186,7 +197,7 @@ ss ssUserInput {
         } state WAITFORRUNNING
 
         when(delay(5.0)) {
-            printf("Timeout waiting for RESTART of %s\n", macValueGet("P"));
+            printf("WARNING: Timeout waiting for RESTART of %s\n", macValueGet("P"));
         } state MONITORINPUTS
     }
 
@@ -197,10 +208,24 @@ ss ssUserInput {
         when(efTestAndClear(statusMon) && (status == RUNNING)) {
         } state MONITORINPUTS
 
-        /* need a long timeout here as tests with sending lots of consecutive
-           commands seemed to require this */
+        /* the default procserv delay between a stop and start when a restart is signalled is 15 seconds */
         when(delay(30.0)) {
-            printf("Timeout waiting for RUNNING of %s\n", macValueGet("P"));
+            printf("WARNING: Still waiting for RUNNING (autorestart = %s) - resending start for %s\n",
+                       (autorestart != 0 ? "ON" : "OFF"), macValueGet("P"));
+            %% writeControlChar(pVar, "\x18");
+        } state WAITFORRUNNING2
+    }
+
+    state WAITFORRUNNING2 {
+        entry {
+        }
+
+        when(efTestAndClear(statusMon) && (status == RUNNING)) {
+        } state MONITORINPUTS
+
+        when(delay(20.0)) {
+            printf("ERROR: Timeout waiting for RUNNING of %s (autorestart = %s)\n",
+                macValueGet("P"), (autorestart != 0 ? "ON" : "OFF"));
         } state MONITORINPUTS
     }
 }
