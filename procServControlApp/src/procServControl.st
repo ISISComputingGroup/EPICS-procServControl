@@ -504,7 +504,7 @@ static void startProcserv(struct UserVar *pVar) {
         connect it may be 20 seconds before retry */
     const double CONNECT_INITIAL_WAIT = getEnvDoubleValue("CONNECT_INITIAL_WAIT", 2.0); /* make long enough to hopefully auto-connect on first try */
     const double CONNECT_CHECK_WAIT = getEnvDoubleValue("CONNECT_CHECK_WAIT", 0.5);
-    const double CONNECT_TOTAL_WAIT = getEnvDoubleValue("CONNECT_TOTAL_WAIT", 25.0); /* at least 20 seconds to be greater than default asyn-connect retry */
+    const double CONNECT_TOTAL_WAIT = getEnvDoubleValue("CONNECT_TOTAL_WAIT", 25.0); /* at least 20 seconds to be greater than default asyn DEFAULT_SECONDS_BETWEEN_PORT_CONNECT */
     const double LAUNCH_WAIT = getEnvDoubleValue("LAUNCH_WAIT", 0.2); /* time to hold global procServ launch lock for */
 #ifdef _WIN32
     const char* comspec = getenv("ComSpec");
@@ -517,7 +517,7 @@ static void startProcserv(struct UserVar *pVar) {
     si.cb = sizeof(si);
     ZeroMemory( &pi, sizeof(pi) );
     if (epics_kit_root != NULL) {
-        sprintf(command, "\"%s\" /c \"%s\\iocstartup\\ioc_bats\\%s.bat\"", comspec, epics_kit_root, pVar->port);
+        epicsSnprintf(command, sizeof(command), "\"%s\" /c \"%s\\iocstartup\\ioc_bats\\%s.bat\"", comspec, epics_kit_root, pVar->port);
         printf("startProcserv: Running %s\n", command);
         if (!CreateEnvironmentBlock(&lpEnv, GetCurrentProcessToken(), FALSE)) {
             printf("startProcserv: Cannot create environment: error 0x%08x\n", GetLastError());
@@ -540,10 +540,15 @@ static void startProcserv(struct UserVar *pVar) {
         CloseHandle(pi.hProcess);
 
         /* Check that asynUser exists */
-        if (pVar->stateIndex >= NSTATEMACHINES) return;
+        if (pVar->stateIndex >= NSTATEMACHINES) {
+            printf("startProcserv: ERROR: stateIndex >= NSTATEMACHINES\n");
+            return;
+        }
         pasynUser = pasynUsers[pVar->stateIndex];
-        if (pasynUser == NULL) return;
-
+        if (pasynUser == NULL) {
+            printf("startProcserv: ERROR: pasynUser is NULL\n");
+            return;
+        }
         /* enable autoconnect now we have launched procserv */
         epicsThreadSleep(CONNECT_INITIAL_WAIT);
         pasynManager->autoConnect(pasynUser, 1);
@@ -558,6 +563,8 @@ static void startProcserv(struct UserVar *pVar) {
         } else {
             printf("startProcserv: WARNING: %s not yet connected after %f seconds\n", pVar->port, CONNECT_INITIAL_WAIT + CONNECT_CHECK_WAIT * i);
         }
+    } else {
+        printf("startProcserv: WARNING: EPICS_KIT_ROOT not defined\n");
     }
 #endif
 }
